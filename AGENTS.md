@@ -137,10 +137,10 @@ curl -X POST http://localhost:3000/api/trpc/guestbook.create \
 
 `src/components/postcard/` 组件：
 
-- **Stamp**：锯齿邮票（图 + 面值 + 「中国邮政」），自带 rotate
+- **Stamp**：锯齿邮票组件，**当前没有任何页面在用**。卡片上的**装饰性**邮票已全部去掉（列表卡 / 首页小卡 / 详情页 3 处 / 关于页 / 时间线明信片 / 台历格），用户原话：「即使拟物很完整，但网页的视觉效果会很乱」。**别再顺手把邮票加回卡片上**，这和首页标题那条是同一类约定。仍然保留锯齿形状的只有两处，**都不是装饰**：① 导航 logo（品牌记号）② 留言板（「选一枚邮票」是表单控件，访客选的色会显示在自己那张留言卡上 —— 删了功能就没意义）。组件本体与 `.stamp-perf-fine` 保留备用（无引用 = 构建时被 tree-shake，不占 JS 体积）；若将来要复活，**先读 `Stamp.tsx` 顶部的四条约束**（独立图案 / `1.20元` 墨色叠印且无底框 / 细齿孔 / 印刷内框），那里也记着已挑选并验证过的 8 个图案 id
 - **Postmark**：圆形邮戳 SVG（环形 textPath 文字 + 日期 + 波浪销票线），通常配 `-rotate-12 mix-blend-multiply`
 - **TornEdge**：手撕纸边缘分隔条（`preserveAspectRatio="none"` 跨整宽）
-- **WashiTape**：和纸胶带（定位用 className 传入）
+- **WashiTape**：和纸胶带（定位用 className 传入）。**行内 `transform` 会整条覆盖 Tailwind 的 `-translate-x-1/2`**，所以组件内部自己消费 `var(--tw-translate-x)`，否则"居中"的胶带会偏半个身位
 - **Postcard**：带标题/摘要的大明信片卡（Posts 列表用）
 - **MiniPostcard**：只有照片 + 一行手写落款的小卡（首页用）
 
@@ -170,7 +170,11 @@ curl -X POST http://localhost:3000/api/trpc/guestbook.create \
 
 ### Timeline（src/pages/Timeline.tsx）
 
-- posts + diary 合并按日期倒序，按月分组。邮路是 1px 虚线渐变（`backgroundImage` 竖向 repeating），绳结是 border 圆点。桌面左右交错（`sm:w-[calc(50%-2.5rem)]`），移动端全部收右（`ml-12`）。
+- **一天 = 一个绳结**：`buildTimeline()` 把 posts 与 diary 按日期归并成 `Day`（同一天 = 一张明信片 + 那天的手记，不再各占一行、互不相认）。同一天内博文一定排在便签之前 —— **别退回到靠 kind 字典序**（`"diary" < "post"`，那是碰运气）。日期解析失败（`postDateKey` 返回 `""`）的博文进「日期待补」区显式露出并给修复提示，**不能静默丢**（旧版会被 `slice(0,7)` 变成空月份然后消失）。
+- 撞日的呈现已定为**分开挂**：博文与便签各自独立成卡，中间一段竖麻绳 + 手写「同一天的手记 ↴」把它们连成一组（`both` 为真时渲染）。曾另有一版「叠压」（便签用胶带贴在明信片下缘的留白上，明信片需留 `pb-16`）**已按用户要求废弃** —— 纵向更挤、版面更乱，别再改回去。
+- 邮路是 1px 虚线渐变（`backgroundImage` 竖向 repeating）。绳结是 border 圆点，另有一段 `bg-ink/25` 的**挂绳短线**把它连到卡片（否则卡片和绳子毫无连接，看不出"挂在绳上"）；移动端绳子太窄，改用竖排日期牌（`08/20`）承担节奏。桌面左右交错（`sm:w-[calc(50%-2.5rem)]`），移动端全部收右（`ml-12`）。
+- 月份牌 `sticky top-[4.75rem]`（= 导航实测高度 76px，导航是 sticky z-50）。底色必须**不透明** `bg-paper`：半透明时新旧月份牌交接会互相透出来。
+- 便签是 `<Link to="/calendar?date=…">`，台历读 `?date=` 翻月 + 高亮 + 展开详情（**别把便签改回死 `<div>`**，那 19 条就成了点不动的死内容）。
 
 ### Guestbook（全栈）
 
@@ -201,7 +205,7 @@ curl -X POST http://localhost:3000/api/trpc/guestbook.create \
   date: "2026 年 8 月 12 日",        // ★ 必须此格式，日历靠正则解析
   stampDate: "2026.08",              // 邮戳用 YYYY.MM
   image: "https://picsum.photos/id/{id}/1080/760",
-  price: "1.20",                     // 邮票面值
+  price: "1.20",                     // 邮票面值（卡片上已不渲染邮票，此字段暂时空转，保留沿用）
   excerpt: "一两句摘要",
   tags: ["标签"],
   content: ["段落1", "段落2", ...],  // 第一段自动首字下沉
@@ -233,11 +237,14 @@ curl -X POST http://localhost:3000/api/trpc/guestbook.create \
 | curl 页面路由全 404 | `Accept` 不含 text/html 走 JSON 404 分支 | 加 `-H "Accept: text/html"`，浏览器无此问题 |
 | 滑动后新明信片空白 | ① 翻转状态未重置 ② 正面容器无保底高度 | `useEffect` 监听 slug 重置 + 容器 `aspect-[3/4]` |
 | 邮票孔打满整面 | `.stamp-perf` 只写了一层打孔 mask | 补中心实心层：`linear-gradient(#000 0 0) no-repeat 50% / calc(100%-2*hole) ...` |
+| 小尺寸邮票糊成一团、看不出是邮票 | `.stamp-perf` 的 `--hole: 5px` 在 `w-3.5`(14px) 上，中心实心区只剩 `calc(100% - 2*5px)` = **4px**，齿孔几乎吃掉了整个形状 | 齿孔必须随票面缩放：小票改用 `.stamp-perf-fine`（3px）；再小（≤16px）就别用打孔边了 |
+| （已停用）邮票看起来像「带价签的宝丽来」而不是邮票 | 卡片上的邮票已整体去掉（见 §4）。若将来复活，四个成因：① 图案复用了卡片自己的照片（同一张图出现两次）② 面值写成 `¥1.20` 且套了半透明底框（电商价签语言）③ 齿孔 5px 在小尺寸太粗，边缘读成撕口票根 ④ 满版横版照片 + 底部说明条 = 拍立得语法 | 见 `Stamp.tsx` 顶部的四条约束，以及已挑选验证过的 8 个图案 id；小票配 `.stamp-perf-fine` |
 | 页面莫名横向滚动/视口被撑宽 | 旋转/绝对定位元素溢出 | 已有 `overflow-x: clip` 兜底；新组件旋转幅度控制在 ±6° |
 | puppeteer 触摸测试页面变 about:blank | `page.touchscreen` 触发系统手势 | 用 `page.evaluate` 内派发 `TouchEvent` |
 | 中文变伪斜体 | 用了 `italic` | 换 `font-kai` 或加粗 |
 | `bun install` 报 `DNSResolveFailed downloading tarball xxx` | 锁文件里的 `resolved` 指向已下线的私有镜像（本仓库历史上是 `npm.mirrors.msh.team`，该域名已不存在），bun/npm 都按锁文件下载，于是双双失败 | 把两个锁文件里的镜像域名换成 `https://registry.npmjs.org/`（包版本与 integrity 不变，路径结构一致），或删锁文件让 bun 重新解析 |
 | `bun dist/boot.js` 报 `EADDRINUSE`（端口被自己占） | Bun 运行时会自动把入口的默认导出（Hono app）再 `Bun.serve` 一次，与 `@hono/node-server` 抢同一端口 | 生产入口保持 Node：`bun run start` 里已经是 `node dist/boot.js`；**不要**用 `bun --bun` 起生产 |
+| 停掉 `bun run dev` 之后端口 3000 还被占着，下次 dev 被挤到 3001（违反"勿改端口 3000"） | 终止外层 `bun run dev`（含 agent 的 `job_kill`）**不会**连带杀掉 vite 的 node 子进程，它变成孤儿继续监听 3000。实测 2/2 必现 | 先核对再清：`Get-NetTCPConnection -State Listen -LocalPort 3000` 拿 `OwningProcess` → `Get-CimInstance Win32_Process -Filter "ProcessId = <pid>"` 确认命令行是 `<仓库>\node_modules\vite\bin\vite.js` → 再 `Stop-Process -Id <pid> -Force`。**别不核对就按端口杀进程** |
 | dev server 毫无征兆退出（页面 404 / 连不上），`dev.err` 里是 `EBUSY: resource busy or locked, watch '...\<file>.<pid>.<uuid>.tmpdir\...tmp'` | 编辑器或 AI 工具用「临时目录 + 改名」的方式原子写文件，Vite 的 chokidar 监视整个项目根，在 Windows 上 `fs.watch` 那个临时文件抛 EBUSY，而 Vite 把 watcher error 当致命错误直接退出 | 重启 `bun run dev` 即可；**边跑 dev server 边写文件时容易触发**，所以改完代码再起服务（或把临时目录加进 `server.watch.ignored`） |
 
 ## 9. 部署形态

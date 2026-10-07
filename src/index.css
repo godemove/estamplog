@@ -101,6 +101,12 @@
     linear-gradient(#000 0 0) no-repeat 50% / calc(100% - var(--hole) * 2) calc(100% - var(--hole) * 2);
 }
 
+/* 更细的齿孔：小尺寸邮票必须孔更密，否则边缘读成"撕开的票根"而不是打孔。
+   本类必须排在 .stamp-perf 之后（同特异性，后者胜） */
+.stamp-perf-fine {
+  --hole: 3px;
+}
+
 /* 航空信封红蓝斜纹 */
 .airmail-stripes {
   background: repeating-linear-gradient(

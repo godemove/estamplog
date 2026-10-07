@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { posts, postDateKey } from "@/data/posts";
 import { diaryByDate } from "@/data/diary";
 import WashiTape from "@/components/postcard/WashiTape";
@@ -7,6 +7,13 @@ import Postmark from "@/components/postcard/Postmark";
 
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 const MONTH_ZH = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
+
+const DATE_KEY_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+/** 时间线上的便签会带 ?date=YYYY-MM-DD 跳过来，直接翻到那一天 */
+function isDateKey(v: string | null): v is string {
+  return !!v && DATE_KEY_RE.test(v);
+}
 
 const postByDate = new Map(posts.map((p) => [postDateKey(p), p]));
 
@@ -21,9 +28,23 @@ function pad(n: number) {
 
 export default function Calendar() {
   const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth()); // 0-based
-  const [selected, setSelected] = useState<string | null>(null);
+  const [params] = useSearchParams();
+  const dateParam = params.get("date");
+  const jumpTo = isDateKey(dateParam) ? dateParam : null;
+
+  const [year, setYear] = useState(() => (jumpTo ? Number(jumpTo.slice(0, 4)) : today.getFullYear()));
+  const [month, setMonth] = useState(() => (jumpTo ? Number(jumpTo.slice(5, 7)) - 1 : today.getMonth())); // 0-based
+  const [selected, setSelected] = useState<string | null>(jumpTo);
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  // 从时间线跳过来时，把选中的那天滚进视野（详情在台历下方，手机上常在首屏外）
+  useEffect(() => {
+    if (!jumpTo) return;
+    setYear(Number(jumpTo.slice(0, 4)));
+    setMonth(Number(jumpTo.slice(5, 7)) - 1);
+    setSelected(jumpTo);
+    detailRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [jumpTo]);
 
   const cells = useMemo(() => {
     const first = new Date(year, month, 1);
@@ -143,9 +164,6 @@ export default function Calendar() {
                       className="block aspect-[4/3] w-full object-cover"
                       style={{ filter: "sepia(0.18) saturate(1.06)" }}
                     />
-                    <span className="stamp-perf absolute -right-1 -top-1 block w-3.5 bg-white p-px shadow-sm sm:w-4" style={{ transform: "rotate(8deg)" }}>
-                      <span className="block aspect-square w-full bg-terra" />
-                    </span>
                   </span>
                 )}
 
@@ -169,7 +187,7 @@ export default function Calendar() {
 
       {/* ---------- 选中日的展开：明信片 / 便签 ---------- */}
       {selected && (selectedPost || selectedDiary) && (
-        <div className="mt-10 flex flex-col items-center gap-8 sm:flex-row sm:items-start sm:justify-center">
+        <div ref={detailRef} className="mt-10 flex flex-col items-center gap-8 sm:flex-row sm:items-start sm:justify-center">
           {selectedPost && (
             <Link
               to={`/post/${selectedPost.slug}`}

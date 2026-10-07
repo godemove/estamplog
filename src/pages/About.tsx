@@ -1,5 +1,4 @@
 import { posts } from "@/data/posts";
-import Stamp from "@/components/postcard/Stamp";
 import Postmark from "@/components/postcard/Postmark";
 import WashiTape from "@/components/postcard/WashiTape";
 
@@ -21,7 +20,6 @@ export default function About() {
                 style={{ filter: "sepia(0.22) saturate(1.05)" }}
               />
             </div>
-            <Stamp image="https://picsum.photos/id/1043/720/840" price="1.20" rotate={7} className="absolute right-2 top-2 w-20 shadow-md sm:w-24" />
             <Postmark city="寄信人" date="VERIFIED" size={104} className="absolute bottom-3 left-3 -rotate-12 mix-blend-multiply" />
             <p className="mt-4 text-center font-hand text-xl text-ink/70">hi, i'm the one behind the stamps</p>
           </div>

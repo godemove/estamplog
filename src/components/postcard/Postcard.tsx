@@ -1,6 +1,5 @@
 import { Link } from "react-router";
 import type { Post } from "@/data/posts";
-import Stamp from "./Stamp";
 import Postmark from "./Postmark";
 
 type Props = {
@@ -27,12 +26,6 @@ export default function Postcard({ post, rotate = 0, className = "" }: Props) {
             style={{ filter: "sepia(0.18) saturate(1.06) contrast(1.02)" }}
           />
         </div>
-        <Stamp
-          image={post.image}
-          price={post.price}
-          rotate={7}
-          className="absolute -right-3 -top-4 w-16 shadow-md sm:w-20"
-        />
         <Postmark
           city={post.location.split(" · ")[0]}
           date={post.stampDate}

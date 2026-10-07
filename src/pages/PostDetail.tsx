@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { getPost, posts, type Post } from "@/data/posts";
-import Stamp from "@/components/postcard/Stamp";
 import Postmark from "@/components/postcard/Postmark";
 import WashiTape from "@/components/postcard/WashiTape";
 
@@ -17,7 +16,6 @@ function PhotoSide({ post }: { post: Post }) {
           style={{ filter: "sepia(0.18) saturate(1.06) contrast(1.02)" }}
         />
       </div>
-      <Stamp image={post.image} price={post.price} rotate={7} className="absolute right-2 top-2 w-20 shadow-md sm:w-24" />
       <Postmark
         city={post.location.split(" · ")[0]}
         date={post.stampDate}
@@ -169,7 +167,6 @@ function FlipPostcard({ post }: { post: Post }) {
                 className="absolute inset-0 h-full w-full object-cover"
                 style={{ filter: "sepia(0.18) saturate(1.06) contrast(1.02)" }}
               />
-              <Stamp image={post.image} price={post.price} rotate={7} className="absolute right-2 top-2 w-20 shadow-md" />
               <Postmark
                 city={post.location.split(" · ")[0]}
                 date={post.stampDate}
@@ -536,14 +533,13 @@ export default function PostDetail() {
                 <div className="flex min-h-0 flex-col items-center justify-center">
                   <div className="relative">
                     {/* ★ 必须有 aspect 保底：只写 w-auto/max-h 时，图片加载完成前盒子高度为 0，
-                        邮票/邮戳/落款会叠在一起（和移动端正面塌陷是同一个坑） */}
+                        邮戳/落款会叠在一起（和移动端正面塌陷是同一个坑） */}
                     <img
                       src={post.image}
                       alt={post.title}
                       className="aspect-[1080/760] max-h-[calc(100vh-15rem)] w-full border border-sand object-contain"
                       style={{ filter: "sepia(0.18) saturate(1.06) contrast(1.02)" }}
                     />
-                    <Stamp image={post.image} price={post.price} rotate={7} className="absolute right-2 top-2 w-20 shadow-md sm:w-24" />
                     <Postmark
                       city={post.location.split(" · ")[0]}
                       date={post.stampDate}
