@@ -39,3 +39,6 @@ build/
 # Test coverage
 coverage/
 .nyc_output/
+
+# 本地验证产物（截图、一次性校验脚本，见 AGENTS.md）—— 不入库
+.verify/
