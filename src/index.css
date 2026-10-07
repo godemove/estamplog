@@ -1,0 +1,202 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.625rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html,
+  body {
+    overflow-x: clip;
+  }
+  body {
+    @apply bg-paper text-ink antialiased;
+    font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  ::selection {
+    background: #c45c3e;
+    color: #fff;
+  }
+  img {
+    background-color: #eadfd2;
+  }
+}
+
+/* ---------- 明信片拟物体系 ---------- */
+
+/* 邮票锯齿边：边缘打孔、中心实心 */
+.stamp-perf {
+  --hole: 5px;
+  -webkit-mask:
+    radial-gradient(circle var(--hole) at var(--hole) var(--hole), transparent 96%, #000)
+      calc(-1 * var(--hole)) calc(-1 * var(--hole)) / calc(var(--hole) * 2) calc(var(--hole) * 2),
+    linear-gradient(#000 0 0) no-repeat 50% / calc(100% - var(--hole) * 2) calc(100% - var(--hole) * 2);
+  mask:
+    radial-gradient(circle var(--hole) at var(--hole) var(--hole), transparent 96%, #000)
+      calc(-1 * var(--hole)) calc(-1 * var(--hole)) / calc(var(--hole) * 2) calc(var(--hole) * 2),
+    linear-gradient(#000 0 0) no-repeat 50% / calc(100% - var(--hole) * 2) calc(100% - var(--hole) * 2);
+}
+
+/* 航空信封红蓝斜纹 */
+.airmail-stripes {
+  background: repeating-linear-gradient(
+    -45deg,
+    #c45c3e 0 14px,
+    #fcf9f3 14px 26px,
+    #2e596c 26px 40px,
+    #fcf9f3 40px 52px
+  );
+}
+
+/* 手写信纸横线 */
+.letter-lines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 calc(2rem - 1px),
+    rgba(46, 89, 108, 0.28) calc(2rem - 1px) 2rem
+  );
+  line-height: 2rem;
+}
+
+/* 和纸胶带 */
+.washi {
+  position: absolute;
+  width: 96px;
+  height: 28px;
+  opacity: 0.85;
+  clip-path: polygon(2% 0, 98% 4%, 100% 92%, 3% 100%, 0 8%);
+  box-shadow: 0 1px 3px rgba(26, 61, 46, 0.18);
+}
+
+/* 全页胶片颗粒 */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.4;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.32'/%3E%3C/svg%3E");
+}
+
+/* 纸张浮起阴影 */
+.paper-shadow {
+  box-shadow:
+    0 1px 2px rgba(92, 74, 61, 0.12),
+    0 8px 24px -6px rgba(92, 74, 61, 0.22),
+    0 20px 48px -12px rgba(92, 74, 61, 0.16);
+}
+.paper-shadow-sm {
+  box-shadow:
+    0 1px 2px rgba(92, 74, 61, 0.1),
+    0 6px 16px -4px rgba(92, 74, 61, 0.18);
+}
+
+/* 明信片悬停回正 */
+.postcard-tilt {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.45s ease;
+}
+.postcard-tilt:hover {
+  transform: rotate(0deg) translateY(-6px) scale(1.015) !important;
+}
+
+/* 新明信片从桌面滑入落位：右 = 下一张从右来，左 = 上一张从左来 */
+@keyframes card-arrive-right {
+  0% { transform: translateX(24%) rotate(6deg); opacity: 0; }
+  100% { transform: translateX(0) rotate(0deg); opacity: 1; }
+}
+@keyframes card-arrive-left {
+  0% { transform: translateX(-24%) rotate(-6deg); opacity: 0; }
+  100% { transform: translateX(0) rotate(0deg); opacity: 1; }
+}
+.card-arrive-right {
+  animation: card-arrive-right 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.card-arrive-left {
+  animation: card-arrive-left 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 邮戳盖印动画 */
+@keyframes stamp-in {
+  0% { transform: scale(1.6) rotate(-18deg); opacity: 0; }
+  60% { transform: scale(0.94) rotate(-12deg); opacity: 1; }
+  100% { transform: scale(1) rotate(-12deg); opacity: 1; }
+}
+.stamp-in {
+  animation: stamp-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 虚线分隔（明信片背面中线） */
+.postcard-divider {
+  background-image: linear-gradient(to bottom, rgba(92, 74, 61, 0.35) 55%, transparent 45%);
+  background-size: 1px 12px;
+  background-repeat: repeat-y;
+}
+
+@media (max-width: 640px) {
+  .washi { width: 72px; height: 22px; }
+}
