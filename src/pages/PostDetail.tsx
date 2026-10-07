@@ -267,6 +267,46 @@ export default function PostDetail() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [flyTo, next, prev]);
 
+  // 全屏观看：CSS 全屏层永远生效，能进原生全屏就顺带进去（iOS Safari 不支持元素全屏）
+  const [fullscreen, setFullscreen] = useState(false);
+  const fsLayer = useRef<HTMLDivElement | null>(null);
+  const fsExit = useRef<HTMLButtonElement | null>(null);
+  const wantNativeFs = useRef(false);
+
+  const enterFullscreen = () => {
+    wantNativeFs.current = true;
+    setFullscreen(true);
+  };
+
+  const exitFullscreen = useCallback(() => {
+    wantNativeFs.current = false;
+    setFullscreen(false);
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!fullscreen) return;
+    if (wantNativeFs.current && !document.fullscreenElement) {
+      fsLayer.current?.requestFullscreen?.().catch(() => {});
+    }
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    fsExit.current?.focus();
+    const onFsChange = () => {
+      if (!document.fullscreenElement && wantNativeFs.current) exitFullscreen();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") exitFullscreen();
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("fullscreenchange", onFsChange);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [fullscreen, exitFullscreen]);
+
   if (!post) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-24 text-center">
@@ -325,9 +365,19 @@ export default function PostDetail() {
 
   return (
     <article className="mx-auto max-w-5xl px-4 pb-8 pt-12 sm:px-6 sm:pt-16">
-      <p className="font-display text-xs tracking-[0.4em] text-terra">
-        POSTCARD NO.{String(idx + 1).padStart(3, "0")} · {post.titleEn}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="font-display text-xs tracking-[0.4em] text-terra">
+          POSTCARD NO.{String(idx + 1).padStart(3, "0")} · {post.titleEn}
+        </p>
+        <button
+          type="button"
+          onClick={enterFullscreen}
+          title="全屏观看这张明信片（Esc 退出）"
+          className="hidden min-h-11 items-center border border-dashed border-airmail/40 px-3 font-kai text-sm text-airmail transition-colors hover:border-terra hover:bg-terra/5 hover:text-terra focus-visible:border-terra focus-visible:outline-none md:inline-flex"
+        >
+          全屏观看
+        </button>
+      </div>
 
       {/* 滑动手势区域：整个明信片随手指走 */}
       <div
@@ -336,7 +386,9 @@ export default function PostDetail() {
         onTouchEnd={onTouchEnd}
         className="relative"
       >
-        {/* 桌角露出的一角相邻明信片：可直接点击翻篇 */}
+        {/* 桌角露出的一角相邻明信片：可直接点击翻篇
+            露出宽度 = 偏移量（-left-24 = 露出 96px），别缩小偏移；
+            只在 xl(≥1280) 显示 —— 更窄时侧边空间不够，会被窗口裁成断口 */}
         {prev && (
           <button
             type="button"
@@ -344,9 +396,17 @@ export default function PostDetail() {
             disabled={leaving !== null}
             title={`上一张：${prev.title}`}
             aria-label={`上一张明信片：${prev.title}`}
-            className="paper-shadow-sm absolute -left-4 top-10 hidden w-24 -rotate-[8deg] overflow-hidden bg-white p-1.5 transition-transform duration-300 hover:-translate-x-2 hover:-translate-y-1 hover:rotate-0 focus-visible:-translate-x-2 focus-visible:rotate-0 focus-visible:outline-none disabled:opacity-40 sm:block"
+            className="paper-shadow-sm absolute -left-24 top-12 hidden w-40 -rotate-[8deg] overflow-hidden bg-white p-2 transition-transform duration-300 hover:-translate-x-3 hover:-translate-y-1 hover:rotate-0 focus-visible:-translate-x-3 focus-visible:rotate-0 focus-visible:outline-none disabled:opacity-40 xl:block"
           >
-            <img src={prev.image} alt="" className="aspect-[4/3] w-full object-cover" style={{ filter: "sepia(0.18)" }} />
+            <img
+              src={prev.image}
+              alt=""
+              className="aspect-[4/3] w-full border border-sand object-cover"
+              style={{ filter: "sepia(0.18) saturate(1.06) contrast(1.02)" }}
+            />
+            <p className="mt-1.5 truncate text-left font-hand text-base leading-tight text-ink/70">
+              {prev.location.split(" · ")[1] ?? prev.location}
+            </p>
           </button>
         )}
         {next && (
@@ -356,9 +416,17 @@ export default function PostDetail() {
             disabled={leaving !== null}
             title={`下一张：${next.title}`}
             aria-label={`下一张明信片：${next.title}`}
-            className="paper-shadow-sm absolute -right-4 top-10 hidden w-24 rotate-[8deg] overflow-hidden bg-white p-1.5 transition-transform duration-300 hover:translate-x-2 hover:-translate-y-1 hover:rotate-0 focus-visible:translate-x-2 focus-visible:rotate-0 focus-visible:outline-none disabled:opacity-40 sm:block"
+            className="paper-shadow-sm absolute -right-24 top-12 hidden w-40 rotate-[8deg] overflow-hidden bg-white p-2 transition-transform duration-300 hover:translate-x-3 hover:-translate-y-1 hover:rotate-0 focus-visible:translate-x-3 focus-visible:rotate-0 focus-visible:outline-none disabled:opacity-40 xl:block"
           >
-            <img src={next.image} alt="" className="aspect-[4/3] w-full object-cover" style={{ filter: "sepia(0.18)" }} />
+            <img
+              src={next.image}
+              alt=""
+              className="aspect-[4/3] w-full border border-sand object-cover"
+              style={{ filter: "sepia(0.18) saturate(1.06) contrast(1.02)" }}
+            />
+            <p className="mt-1.5 truncate text-right font-hand text-base leading-tight text-ink/70">
+              {next.location.split(" · ")[1] ?? next.location}
+            </p>
           </button>
         )}
 
@@ -403,6 +471,99 @@ export default function PostDetail() {
         <span className="sm:hidden">slide the card</span>
         <span className="hidden sm:inline">← → 方向键也能翻篇</span>
       </p>
+
+      {/* 全屏观看：整屏只剩明信片本体，卡片永远完整可见，文字在右列内部滚动 */}
+      {fullscreen && (
+        <div
+          ref={fsLayer}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`全屏观看：${post.title}`}
+          onClick={exitFullscreen}
+          className="fixed inset-0 z-[55] flex flex-col bg-ink/80 p-3 backdrop-blur-sm sm:p-6"
+        >
+          {/* 工具条（深色底上用纸色文字） */}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex flex-wrap items-center justify-between gap-3 pb-3"
+          >
+            <p className="font-display text-xs tracking-[0.4em] text-paper/75">
+              POSTCARD NO.{String(idx + 1).padStart(3, "0")} · {post.titleEn}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => flyTo("right")}
+                disabled={!prev || leaving !== null}
+                title={prev ? `上一张：${prev.title}` : "已是第一张"}
+                className="min-h-11 border border-dashed border-paper/40 px-3 font-kai text-sm text-paper transition-colors hover:bg-paper/10 disabled:pointer-events-none disabled:opacity-35"
+              >
+                ← 上一张
+              </button>
+              <button
+                type="button"
+                onClick={() => flyTo("left")}
+                disabled={!next || leaving !== null}
+                title={next ? `下一张：${next.title}` : "已是最后一张"}
+                className="min-h-11 border border-dashed border-paper/40 px-3 font-kai text-sm text-paper transition-colors hover:bg-paper/10 disabled:pointer-events-none disabled:opacity-35"
+              >
+                下一张 →
+              </button>
+              <button
+                ref={fsExit}
+                type="button"
+                onClick={exitFullscreen}
+                className="min-h-11 border border-dashed border-paper/70 px-3 font-kai text-sm text-paper transition-colors hover:bg-paper/15 focus-visible:bg-paper/15 focus-visible:outline-none"
+              >
+                退出全屏
+                <span className="ml-1.5 font-display text-[10px] tracking-[0.2em] opacity-70">ESC</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 卡片本体：撑满剩余高度，照片等比完整显示，正文列内部滚动 */}
+          <div onClick={(e) => e.stopPropagation()} className="mx-auto flex min-h-0 w-full max-w-[1500px] flex-1">
+            <div
+              key={post.slug}
+              style={cardStyle}
+              className={`paper-shadow relative flex min-h-0 w-full bg-white p-4 sm:p-6 ${
+                leaving ? "" : `card-arrive-${enterFrom}`
+              }`}
+            >
+              <WashiTape color="#e89b50" rotate={-5} className="-top-3 left-10 z-10" />
+              <WashiTape color="#2e596c" rotate={4} className="-top-3 right-10 z-10" />
+              <div className="grid min-h-0 w-full grid-cols-1 gap-6 md:grid-cols-2 md:grid-rows-[minmax(0,1fr)]">
+                <div className="flex min-h-0 flex-col items-center justify-center">
+                  <div className="relative">
+                    {/* ★ 必须有 aspect 保底：只写 w-auto/max-h 时，图片加载完成前盒子高度为 0，
+                        邮票/邮戳/落款会叠在一起（和移动端正面塌陷是同一个坑） */}
+                    <img
+                      src={post.image}
+                      alt={post.title}
+                      className="aspect-[1080/760] max-h-[calc(100vh-15rem)] w-full border border-sand object-contain"
+                      style={{ filter: "sepia(0.18) saturate(1.06) contrast(1.02)" }}
+                    />
+                    <Stamp image={post.image} price={post.price} rotate={7} className="absolute right-2 top-2 w-20 shadow-md sm:w-24" />
+                    <Postmark
+                      city={post.location.split(" · ")[0]}
+                      date={post.stampDate}
+                      size={104}
+                      className="absolute bottom-3 left-3 -rotate-12 mix-blend-multiply"
+                    />
+                  </div>
+                  <p className="mt-3 text-center font-hand text-xl text-ink/70">
+                    wish you were here — {post.location}
+                  </p>
+                </div>
+                <div className="postcard-divider absolute left-1/2 top-4 hidden h-[calc(100%-2rem)] w-px md:block" />
+                <div className="min-h-0 overflow-y-auto overscroll-contain pr-2">
+                  <WritingContent post={post} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </article>
   );
 }
