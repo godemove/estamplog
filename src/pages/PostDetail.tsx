@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { getPost, posts, type Post } from "@/data/posts";
 import Stamp from "@/components/postcard/Stamp";
@@ -51,13 +51,80 @@ function WritingContent({ post }: { post: Post }) {
       </div>
       <div className="mt-8 flex flex-wrap gap-2">
         {post.tags.map((t) => (
-          <span key={t} className="border border-dashed border-airmail/50 px-3 py-1 font-kai text-sm text-airmail">
+          <Link
+            key={t}
+            to={`/posts?tag=${encodeURIComponent(t)}`}
+            title={`看看贴着「${t}」标签的明信片`}
+            className="inline-flex min-h-11 items-center border border-dashed border-airmail/50 px-3 font-kai text-sm text-airmail transition-colors hover:border-terra hover:bg-terra/5 hover:text-terra focus-visible:border-terra focus-visible:text-terra focus-visible:outline-none sm:min-h-0 sm:py-1"
+          >
             # {t}
-          </span>
+          </Link>
         ))}
       </div>
       <p className="mt-8 text-right font-hand text-2xl text-airmail">— 远山</p>
     </>
+  );
+}
+
+/** 相邻明信片导航按钮：桌面可点击、移动端可轻触，都能翻篇 */
+function NavButton({
+  direction,
+  post,
+  onGo,
+  disabled,
+}: {
+  direction: "prev" | "next";
+  post: Post;
+  onGo: () => void;
+  disabled?: boolean;
+}) {
+  const isPrev = direction === "prev";
+  return (
+    <button
+      type="button"
+      onClick={onGo}
+      disabled={disabled}
+      aria-label={`${isPrev ? "上一张" : "下一张"}明信片：${post.title}`}
+      className={`group flex min-h-11 min-w-0 max-w-56 flex-1 items-center gap-2 border border-dashed border-airmail/40 bg-white/70 px-3 py-2 transition-all duration-300 hover:-translate-y-0.5 hover:border-terra/70 hover:bg-white focus-visible:-translate-y-0.5 focus-visible:border-terra focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40 ${
+        isPrev ? "text-left" : "flex-row-reverse text-right"
+      }`}
+    >
+      <span
+        aria-hidden
+        className="font-display text-lg leading-none text-airmail transition-colors group-hover:text-terra"
+      >
+        {isPrev ? "←" : "→"}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-kai text-xs tracking-[0.2em] text-ink/50">
+          {isPrev ? "上一张" : "下一张"}
+        </span>
+        <span className="hidden truncate font-kai text-base text-forest sm:block">{post.title}</span>
+      </span>
+    </button>
+  );
+}
+
+/** 到头了：该侧没有相邻明信片时占位，保持左右对称（不可点，纯提示） */
+function NavPlaceholder({ direction }: { direction: "prev" | "next" }) {
+  const isPrev = direction === "prev";
+  return (
+    <span
+      aria-hidden
+      className={`flex min-h-11 min-w-0 max-w-56 flex-1 items-center gap-2 border border-dashed border-sand bg-lace/40 px-3 py-2 ${
+        isPrev ? "text-left" : "flex-row-reverse text-right"
+      }`}
+    >
+      <span className="font-display text-lg leading-none text-ink/20">{isPrev ? "←" : "→"}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-kai text-xs tracking-[0.2em] text-ink/30">
+          {isPrev ? "上一张" : "下一张"}
+        </span>
+        <span className="block truncate font-kai text-base text-ink/35">
+          {isPrev ? "已是第一张" : "已是最后一张"}
+        </span>
+      </span>
+    </span>
   );
 }
 
@@ -165,6 +232,41 @@ export default function PostDetail() {
   const prev = idx > 0 ? posts[idx - 1] : undefined;
   const next = idx >= 0 && idx < posts.length - 1 ? posts[idx + 1] : undefined;
 
+  // 翻篇：旧卡先飞出 480ms，再 navigate，新卡从相反方向入场
+  const flyTo = useCallback(
+    (dir: "left" | "right") => {
+      const target = dir === "left" ? next : prev;
+      if (leaving || !target) return;
+      setLeaving(dir);
+      // 旧卡向左飞出 = 下一张从右侧进来；向右飞出 = 上一张从左侧进来
+      setEnterFrom(dir === "left" ? "right" : "left");
+      window.setTimeout(() => {
+        navigate(`/post/${target.slug}`, { replace: false });
+        setLeaving(null);
+        setDrag({ x: 0, active: false });
+      }, 480);
+    },
+    [leaving, navigate, next, prev],
+  );
+
+  // 桌面端键盘翻篇：← 上一张 / → 下一张
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName))) return;
+      if (e.key === "ArrowLeft" && prev) {
+        e.preventDefault();
+        flyTo("right");
+      } else if (e.key === "ArrowRight" && next) {
+        e.preventDefault();
+        flyTo("left");
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [flyTo, next, prev]);
+
   if (!post) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-24 text-center">
@@ -175,18 +277,6 @@ export default function PostDetail() {
       </div>
     );
   }
-
-  const flyTo = (dir: "left" | "right") => {
-    if (leaving) return;
-    setLeaving(dir);
-    // 旧卡向左飞出 = 下一张从右侧进来；向右飞出 = 上一张从左侧进来
-    setEnterFrom(dir === "left" ? "right" : "left");
-    setTimeout(() => {
-      navigate(dir === "left" ? `/post/${next!.slug}` : `/post/${prev!.slug}`, { replace: false });
-      setLeaving(null);
-      setDrag({ x: 0, active: false });
-    }, 480);
-  };
 
   const onTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0];
@@ -246,24 +336,30 @@ export default function PostDetail() {
         onTouchEnd={onTouchEnd}
         className="relative"
       >
-        {/* 桌角偷偷露出的相邻明信片，示意可以滑动 */}
+        {/* 桌角露出的一角相邻明信片：可直接点击翻篇 */}
         {prev && (
-          <div
-            aria-hidden
-            className="paper-shadow-sm pointer-events-none absolute -left-4 top-10 hidden w-24 overflow-hidden bg-white p-1.5 sm:block"
-            style={{ transform: "rotate(-8deg)" }}
+          <button
+            type="button"
+            onClick={() => flyTo("right")}
+            disabled={leaving !== null}
+            title={`上一张：${prev.title}`}
+            aria-label={`上一张明信片：${prev.title}`}
+            className="paper-shadow-sm absolute -left-4 top-10 hidden w-24 -rotate-[8deg] overflow-hidden bg-white p-1.5 transition-transform duration-300 hover:-translate-x-2 hover:-translate-y-1 hover:rotate-0 focus-visible:-translate-x-2 focus-visible:rotate-0 focus-visible:outline-none disabled:opacity-40 sm:block"
           >
             <img src={prev.image} alt="" className="aspect-[4/3] w-full object-cover" style={{ filter: "sepia(0.18)" }} />
-          </div>
+          </button>
         )}
         {next && (
-          <div
-            aria-hidden
-            className="paper-shadow-sm pointer-events-none absolute -right-4 top-10 hidden w-24 overflow-hidden bg-white p-1.5 sm:block"
-            style={{ transform: "rotate(8deg)" }}
+          <button
+            type="button"
+            onClick={() => flyTo("left")}
+            disabled={leaving !== null}
+            title={`下一张：${next.title}`}
+            aria-label={`下一张明信片：${next.title}`}
+            className="paper-shadow-sm absolute -right-4 top-10 hidden w-24 rotate-[8deg] overflow-hidden bg-white p-1.5 transition-transform duration-300 hover:translate-x-2 hover:-translate-y-1 hover:rotate-0 focus-visible:translate-x-2 focus-visible:rotate-0 focus-visible:outline-none disabled:opacity-40 sm:block"
           >
             <img src={next.image} alt="" className="aspect-[4/3] w-full object-cover" style={{ filter: "sepia(0.18)" }} />
-          </div>
+          </button>
         )}
 
         <div key={post.slug} style={cardStyle} className={leaving ? "" : `card-arrive-${enterFrom}`}>
@@ -289,10 +385,23 @@ export default function PostDetail() {
         </div>
       </div>
 
-      {/* 滑动指引：纯手写体提示，不是按钮 */}
-      <p className="mt-8 text-center font-hand text-xl text-ink/60">
-        {prev && "→ 上一张"}{prev && next && " · "}{next && "下一张 ←"}
-        <span className="ml-2 text-ink/40">slide the card</span>
+      {/* 相邻明信片导航：鼠标点击 / 手指轻触 / 方向键都能翻篇 */}
+      <nav aria-label="相邻明信片" className="mx-auto mt-8 flex w-full max-w-2xl items-stretch justify-center gap-3">
+        {prev ? (
+          <NavButton direction="prev" post={prev} onGo={() => flyTo("right")} disabled={leaving !== null} />
+        ) : (
+          <NavPlaceholder direction="prev" />
+        )}
+        {next ? (
+          <NavButton direction="next" post={next} onGo={() => flyTo("left")} disabled={leaving !== null} />
+        ) : (
+          <NavPlaceholder direction="next" />
+        )}
+      </nav>
+
+      <p className="mt-4 text-center font-hand text-xl text-ink/50">
+        <span className="sm:hidden">slide the card</span>
+        <span className="hidden sm:inline">← → 方向键也能翻篇</span>
       </p>
     </article>
   );

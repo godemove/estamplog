@@ -33,7 +33,7 @@ api/                    后端（Hono + tRPC）
   lib/                  框架内部：env、http、静态服务 —— 勿改结构
 db/
   schema.ts             Drizzle 表定义（当前只有 guestbook_entries）
-  seed.ts               种子脚本脚手架（npx tsx db/seed.ts）
+  seed.ts               种子脚本脚手架（bun db/seed.ts —— bun 原生跑 TS，无需 tsx）
 contracts/              前后端共享类型（当前仅 errors）
 src/
   main.tsx              入口：BrowserRouter > TRPCProvider > App（勿再包一层 Router）
@@ -56,14 +56,21 @@ src/
 ## 3. 常用命令
 
 ```bash
-npm run dev        # 开发服务器，HMR，端口 3000（勿改端口）
-npm run check      # tsc -b 全量类型检查 —— 提交前必须零错误
-npm run build      # 产物：dist/public/（前端）+ dist/boot.js（后端）
-npm start          # 生产模式启动（NODE_ENV=production node dist/boot.js）
-npm run db:push    # 开发期同步 schema 到 MySQL（首选）
-npm run test       # vitest
-npm run lint       # eslint
+bun install        # 装依赖（以 bun.lock 为准）
+bun run dev        # 开发服务器，HMR，端口 3000（勿改端口）
+bun run check      # tsc -b 全量类型检查 —— 提交前必须零错误
+bun run build      # 产物：dist/public/（前端）+ dist/boot.js（后端）
+bun run start      # 生产模式启动（NODE_ENV=production node dist/boot.js）
+bun run db:push    # 开发期同步 schema 到 MySQL（首选）
+bun run test       # vitest
+bun run lint       # eslint
 ```
+
+**包管理约定（bun，1.4.x）**：
+
+- `bun run <script>` 默认仍以 **Node 运行时**执行 vite / tsc / esbuild；这是刻意选择，**不要改成 `bun --bun run`**（Bun 运行时下 dev 冷启动慢 5 倍以上，生产入口还会端口冲突，见 §8）。
+- **双锁文件并存**：`bun.lock`（开发用）与 `package-lock.json`（Docker / 平台 `npm ci` 用）。改依赖后两者都要更新：`bun install` + `npm install --package-lock-only`。
+- 两个锁文件里的 `resolved` 必须是公共源 `registry.npmjs.org`，**不要提交指向私有镜像域名的锁文件**（见 §8）。
 
 验证 API（tRPC 用 superjson 编码）：
 
@@ -128,14 +135,19 @@ curl -X POST http://localhost:3000/api/trpc/guestbook.create \
 
 ## 5. 关键交互实现（改前必读）
 
+### Home（src/pages/Home.tsx）
+
+- **首页刻意没有可见标题**：进页面直接就是散落在桌面上的明信片。原先的「远山来信 / every journey deserves a stamp」标题块和右上角「远山邮局」邮戳装饰已按用户要求删除，只保留一个 `sr-only` 的 `<h1>` 供无障碍与 SEO 使用。**别再"顺手"把标题或邮戳加回来**；页面的身份由顶部 SiteNav（logo + FARAWAY POST）承担。
+
 ### PostDetail：移动端翻转 + 滑动切换（src/pages/PostDetail.tsx）
 
 - **翻转**：`FlipPostcard` 用 `perspective: 1800px` + 双层 `backface-visibility: hidden`。正面是 `<button>`（点击翻面），背面 header 有「← 翻回照片」。支持 `?flipped=1` 直达背面（测试用）。**`useEffect` 在 `post.slug` 变化时重置翻转状态**——删掉会导致滑到新卡时显示空白背面。
 - **滑动**：整个手势区监听 touch。`touchStart` 记录起点；`touchMove` 中先判定方向（`|dx| > |dy| * 1.2` 才算横滑，避免和背面滚动冲突）；横滑时 `transform: translateX(dx) rotate(dx*0.045deg)` 无过渡跟手；松手超 ±70px 触发 `flyTo`。
 - **切换动画**：`flyTo(dir)` → 旧卡 480ms 飞出对应方向并淡出 → `navigate()` → 新卡以 `card-arrive-{相反方向}` 入场。**入场方向与离场相反**（右滑看上一张 → 新卡从左进）。
 - **正面高度保底**：照片容器 `aspect-[3/4]` + img 绝对定位——防止图片加载慢时高度塌陷成空白（真实踩过的坑）。
-- 桌面端（md+）不翻转，照片/书写左右并排，两侧露出相邻文章的照片边角作滑动暗示。
-- 调试提示：puppeteer 的 `page.touchscreen` 会触发系统级手势把页面卸成 about:blank；**验证请用页面内 `dispatchEvent(new TouchEvent(...))` 派发**（见 git 历史 /tmp 脚本思路）。
+- **桌面端翻篇（曾完全点不动，已修）**：`flyTo(dir)` 是唯一入口，共三处触发 —— ① 底部 `NavButton`（「上一张 / 下一张」真按钮，`min-h-11`，带相邻标题）；② 两侧露出的相邻明信片本身就是 `<button>`（点击飞向对应方向，hover 时往外抽一点）；③ 键盘 `←` `→`（`useEffect` 监听 window，输入框内不拦截）。**别再把翻篇提示写成纯文本**：历史上那行 `→ 上一张 · 下一张 ←` 只是 `<p>`，桌面端点了没反应，两侧明信片也是 `pointer-events-none`，这就是被报的缺陷。到头的一侧渲染 `NavPlaceholder`（灰色虚线槽：「已是第一张」/「已是最后一张」），两个槽位等宽、左右永远对称 —— **不要退化成隐形占位**（只剩一个按钮时会被挤偏，看起来"缺一边"）。
+- 桌面端（md+）不翻转，照片/书写左右并排，两侧露出的相邻文章照片边角既是滑动暗示、也是可点按钮（靠 `overflow-x: clip` 兜底，抽出不撑宽视口）。
+- 调试提示：puppeteer 的 `page.touchscreen` 会触发系统级手势把页面卸成 about:blank；**验证请用页面内 `dispatchEvent(new TouchEvent(...))` 派发**（见 git 历史 /tmp 脚本思路）。桌面点击可改用 Edge `--headless=new --remote-debugging-port=9222` + CDP `Input.dispatchMouseEvent`（无需装 puppeteer；点按钮前记得先 `scrollIntoView`，导航行常在首屏之下）。
 
 ### Calendar（src/pages/Calendar.tsx）
 
@@ -173,6 +185,8 @@ curl -X POST http://localhost:3000/api/trpc/guestbook.create \
 }
 ```
 
+**标签**：`tags` 每项在详情页渲染成可点链接（`/posts?tag=<标签>`），Posts 页读 `?tag=` 过滤卡片、显示「# 标签 ✕ 显示全部」清除入口，无匹配时给空态。**匹配是精确字符串相等**（区分大小写、空格敏感），所以新内容请复用已有标签（现有 23 个：高原 / 河谷 / 胶片 / 丹霞 / 峡谷 / 日落 / 湖泊 / 风 / 雪山 / 欧洲 / 黑白 / 瀑布 / 冰岛 / 水雾 / 村落 / 晨雾 / 人文 / 森林 / 公路 / 秋色 / 峡湾 / 北欧 / 山海），别造近义词（"雪山" 与 "雪线" 会各自只筛出一张卡）。**别把标签改回 `<span>`**：那正是被报的"标签点不动，只有视觉效果"。
+
 **加日记**：`src/data/diary.ts` 加 `{ date: "YYYY-MM-DD", text, place?, weather? }`。日期格式必须严格 `YYYY-MM-DD`。
 
 图片规范：picsum 用固定 id（`/id/{id}/w/h`），**不要用随机图**（每次刷新会变）。上线前如有外部图，先 curl 验证可访问。
@@ -181,13 +195,13 @@ curl -X POST http://localhost:3000/api/trpc/guestbook.create \
 
 1. **勿改** `api/lib/`、`api/queries/connection.ts`、`drizzle.config.ts`、`.env`、`src/providers/trpc.tsx` 的结构（框架生成，改了全站崩）。
 2. **勿改端口 3000**，勿改 `package.json` 的 `build` 脚本。
-3. DB 变更只走：改 `db/schema.ts` → `npm run db:push`。**禁止 drop 表、禁止 `db:push --force`**。
+3. DB 变更只走：改 `db/schema.ts` → `bun run db:push`。**禁止 drop 表、禁止 `db:push --force`**。
 4. tRPC 客户端名固定 `trpc`（不是 `api`）；mutation 必须 Zod `.input()` 校验；DB 类型用 `typeof table.$inferSelect`，别手写 `createdAt: string`。
 5. 前端禁止 import `api/` 下任何东西（跨边界类型用 `@contracts/`）。
 6. 移动端要求：触控目标 ≥ 44px（`min-h-11`）、无 hover-only 交互、响应式 375-430px。
-7. 改动后必须 `npm run check` 零错误 + `npm run build` 通过。
+7. 改动后必须 `bun run check` 零错误 + `bun run build` 通过。
 8. 拟物细节不降级：邮票打孔两层 mask、照片 sepia 滤镜、纸张阴影、旋转角度（-6°~+6°）都是设计本体，别"顺手简化"。
-9. 部署前清掉测试留言（连库 `delete from guestbook_entries` 或跑个 tsx 脚本），别把测试数据留给用户。
+9. 部署前清掉测试留言（连库 `delete from guestbook_entries` 或跑个 bun 脚本），别把测试数据留给用户。
 
 ## 8. 已知坑位速查
 
@@ -199,7 +213,12 @@ curl -X POST http://localhost:3000/api/trpc/guestbook.create \
 | 页面莫名横向滚动/视口被撑宽 | 旋转/绝对定位元素溢出 | 已有 `overflow-x: clip` 兜底；新组件旋转幅度控制在 ±6° |
 | puppeteer 触摸测试页面变 about:blank | `page.touchscreen` 触发系统手势 | 用 `page.evaluate` 内派发 `TouchEvent` |
 | 中文变伪斜体 | 用了 `italic` | 换 `font-kai` 或加粗 |
+| `bun install` 报 `DNSResolveFailed downloading tarball xxx` | 锁文件里的 `resolved` 指向已下线的私有镜像（本仓库历史上是 `npm.mirrors.msh.team`，该域名已不存在），bun/npm 都按锁文件下载，于是双双失败 | 把两个锁文件里的镜像域名换成 `https://registry.npmjs.org/`（包版本与 integrity 不变，路径结构一致），或删锁文件让 bun 重新解析 |
+| `bun dist/boot.js` 报 `EADDRINUSE`（端口被自己占） | Bun 运行时会自动把入口的默认导出（Hono app）再 `Bun.serve` 一次，与 `@hono/node-server` 抢同一端口 | 生产入口保持 Node：`bun run start` 里已经是 `node dist/boot.js`；**不要**用 `bun --bun` 起生产 |
+| dev server 毫无征兆退出（页面 404 / 连不上），`dev.err` 里是 `EBUSY: resource busy or locked, watch '...\<file>.<pid>.<uuid>.tmpdir\...tmp'` | 编辑器或 AI 工具用「临时目录 + 改名」的方式原子写文件，Vite 的 chokidar 监视整个项目根，在 Windows 上 `fs.watch` 那个临时文件抛 EBUSY，而 Vite 把 watcher error 当致命错误直接退出 | 重启 `bun run dev` 即可；**边跑 dev server 边写文件时容易触发**，所以改完代码再起服务（或把临时目录加进 `server.watch.ignored`） |
 
 ## 9. 部署形态
 
 项目根有 `Dockerfile`（node:20-slim → npm ci → build → npm start，暴露 3000）。作为全栈（dynamic）应用交付：前端静态资源 + Hono API + MySQL 一体化。留言数据存云端 MySQL，跨版本持久。
+
+**锁文件策略（bun 迁移后）**：开发用 `bun.lock`；Docker / 平台的 `npm ci` 继续读 `package-lock.json`，两者并存且都必须指向公共源。Dockerfile 未改动，不需要为 bun 换基础镜像。
