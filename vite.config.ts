@@ -8,7 +8,8 @@ import { inspectAttr } from 'kimi-plugin-inspect-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/).*$/] }),
+    // 除 /api/* 外，RSS 也交给 Hono（否则开发态会被 SPA 回退吃掉）
+    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/|rss\.xml(?:\?|$)|feed\.xml(?:\?|$)).*$/] }),
     inspectAttr(), react()],
   server: {
     port: 3000,

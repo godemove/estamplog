@@ -183,3 +183,16 @@ export const heroPhotos = [img(1015, 720, 900), img(1036, 720, 900), img(1039, 7
 export function getPost(slug: string) {
   return posts.find((p) => p.slug === slug);
 }
+
+/** 把「2026 年 8 月 12 日」解析成 2026-08-12；解析失败返回 ""（日历与 RSS 共用同一份逻辑） */
+export function postDateKey(post: Post): string {
+  const m = post.date.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+  if (!m) return "";
+  return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+}
+
+/** 发布日期（UTC 零点，RSS 的 pubDate 用）；解析失败返回 null */
+export function postDate(post: Post): Date | null {
+  const key = postDateKey(post);
+  return key ? new Date(`${key}T00:00:00Z`) : null;
+}

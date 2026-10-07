@@ -10,6 +10,8 @@ export default function SiteFooter() {
           <Link to="/posts" className="underline-offset-4 hover:underline">游记</Link>
           <Link to="/about" className="underline-offset-4 hover:underline">关于</Link>
           <Link to="/guestbook" className="underline-offset-4 hover:underline">留言板</Link>
+          {/* 服务端路由，不是 SPA 路由，用原生 a */}
+          <a href="/rss.xml" className="underline-offset-4 hover:underline">RSS</a>
         </div>
       </div>
     </footer>

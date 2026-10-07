@@ -72,6 +72,19 @@ bun run lint       # eslint
 - **双锁文件并存**：`bun.lock`（开发用）与 `package-lock.json`（Docker / 平台 `npm ci` 用）。改依赖后两者都要更新：`bun install` + `npm install --package-lock-only`。
 - 两个锁文件里的 `resolved` 必须是公共源 `registry.npmjs.org`，**不要提交指向私有镜像域名的锁文件**（见 §8）。
 
+**本地跑「完整应用」（含 API 与 RSS）—— 三个命令的区别**：
+
+- `bun run dev`（3000）：Vite + `@hono/vite-dev-server`，Hono 一起跑，`/api/trpc/*` 与 `/rss.xml` 都可用 ✅
+- `bun run preview`（4173）：**只有静态前端**（`dist/public`），不启动 Hono —— `/rss.xml`、`/api/trpc/*` 会全部回退成 `index.html`。这是预期行为，**别拿 preview 验证接口或 feed**。
+- `bun run start`（3000）：真正的生产形态（`node dist/boot.js`：静态资源 + API + RSS）。它要求 `APP_ID` / `APP_SECRET` / `DATABASE_URL`（`api/lib/env.ts` 在生产模式强制校验，缺一个就直接抛错退出），本地塞占位值即可：
+
+  ```powershell
+  $env:DATABASE_URL='mysql://u:p@127.0.0.1:3306/dev'; $env:APP_ID='local-dev'; $env:APP_SECRET='local-dev'
+  bun run build; bun run start   # → http://localhost:3000/rss.xml
+  ```
+
+  这三个变量目前**只有留言板真的会用到** `DATABASE_URL`，其它页面与 RSS 都不碰库。
+
 验证 API（tRPC 用 superjson 编码）：
 
 ```bash
@@ -164,6 +177,15 @@ curl -X POST http://localhost:3000/api/trpc/guestbook.create \
 - 表：`guestbook_entries(id serial PK, name varchar(50), message text, style varchar(8) 默认"0", created_at)`。`style` 是 "0"-"5" 字符串，映射 6 种邮票颜色。
 - 流程：`guestbookRouter.create`（Zod：name 1-50、message 1-500、style 正则）→ `createGuestbookEntry` → 前端 `utils.guestbook.list.invalidate()` 刷新。
 - 表单是拟物明信片：信纸横线 textarea、6 色邮票选择器、提交后 `.stamp-in` 盖戳动画。
+
+### RSS 订阅（api/rss.ts）
+
+- **端点**：`GET /rss.xml`（`/feed.xml` 是别名），响应头 `Content-Type: application/rss+xml; charset=utf-8` + `Cache-Control: public, max-age=600`；`index.html` 里有 `<link rel="alternate" type="application/rss+xml">`，页脚有「RSS」文字链接。（Chrome 打开 feed 会当纯文本展示 XML，这是浏览器行为，不是 bug；Firefox 有订阅预览页。）
+- **数据同源**：feed 直接 `import` 前端的数据模块 `@/data/posts`（`api/rss.ts`，后端读前端数据，别名在 vite 与 esbuild 两侧都已配好），8 篇游记按 posts 数组顺序（最新在前）输出，`<category>` 用 tags。**加一篇博文 feed 自动收录，不用改 rss.ts**。
+- **日期**：用 `src/data/posts.ts` 的 `postDateKey()` / `postDate()`（UTC 零点 + `toUTCString()` 正好是合法 RFC 822）。Calendar 也用同一份 —— **别在别处再抄一遍那个中文日期正则**（历史上 Calendar 里有一份私有实现，已合并）。
+- **绝对地址**：优先取 `X-Forwarded-Proto` / `X-Forwarded-Host`，其次才用请求本身的 origin —— 部署在反代后面时，item 链接才不会全指回 localhost。
+- ⚠️ **`vite.config.ts` 的 `devServer.exclude` 白名单里带着 `rss\.xml|feed\.xml`**：那个正则的含义是"匹配到的路径不交给 Hono"。删掉这两个分支，开发态的 `/rss.xml` 会被 SPA 回退吃成 HTML（生产不受影响）。
+- 校验：拿到 XML 后用 Python 标准库严格校验结构 / RFC822 日期 / guid 与 link 一致 / 时间倒序，脚本见 `.verify/validate-rss.py`（未跟踪，可随时重写）。
 
 ## 6. 内容数据规范
 

@@ -1,19 +1,12 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
-import { posts, type Post } from "@/data/posts";
+import { posts, postDateKey } from "@/data/posts";
 import { diaryByDate } from "@/data/diary";
 import WashiTape from "@/components/postcard/WashiTape";
 import Postmark from "@/components/postcard/Postmark";
 
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 const MONTH_ZH = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
-
-/** 把 "2026 年 8 月 12 日" 解析成 2026-08-12 */
-function postDateKey(post: Post): string {
-  const m = post.date.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
-  if (!m) return "";
-  return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
-}
 
 const postByDate = new Map(posts.map((p) => [postDateKey(p), p]));
 
